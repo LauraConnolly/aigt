@@ -45,7 +45,7 @@ from monai.metrics import (
 )
 
 from lr_scheduler import PolyLRScheduler, LinearWarmupWrapper
-from datasets import UltrasoundDataset
+from UltrasoundDataset import UltrasoundDataset
 
 
 # Parse command line arguments
@@ -275,6 +275,7 @@ def main(args):
             out_channels=config["out_channels"]
         )
     else:  # default to unet
+        print("in default nnUnet")
         model = monai.networks.nets.UNet(
             spatial_dims=2,
             in_channels=config["in_channels"],

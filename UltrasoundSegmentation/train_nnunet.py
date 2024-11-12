@@ -10,6 +10,8 @@ import yaml
 import wandb
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle
+
 
 from tqdm import tqdm
 from time import perf_counter
@@ -39,7 +41,7 @@ from nnUNet.nnunetv2.experiment_planning.plan_and_preprocess_api import (
 from nnUNet.nnunetv2.run.run_training import get_trainer_from_args
 from nnUNet.nnunetv2.utilities.helpers import dummy_context
 
-from datasets import UltrasoundDataset
+from UltrasoundDataset import UltrasoundDataset
 
 
 # Parse command line arguments
@@ -131,6 +133,7 @@ def main(args):
     random.seed(config["seed"])
     np.random.seed(config["seed"])
     torch.manual_seed(config["seed"])
+    print("Seed that is being used: {}".format(config["seed"]))
     if device == "cuda":
         torch.cuda.manual_seed(config["seed"])
     g = torch.Generator()
@@ -171,6 +174,7 @@ def main(args):
     nnunet_trainer = get_trainer_from_args(
         args.nnunet_dataset_name, "2d", 0, "nnUNetTrainer_50epochs", device=device
     )
+    nnunet_trainer.num_epochs = 1000
     nnunet_trainer.on_train_start()
     train_dataloader = nnunet_trainer.dataloader_train
     val_dataloader = nnunet_trainer.dataloader_val
@@ -214,6 +218,13 @@ def main(args):
 
     # Train loop
     epochs = nnunet_trainer.num_epochs
+
+    print(f"Learning rate: {nnunet_trainer.initial_lr}")
+    print(f"Batch size: {nnunet_trainer.configuration_manager.batch_size}")
+    print(f"Number of epochs: {nnunet_trainer.num_epochs}")
+    print(f"Weight decay: {nnunet_trainer.weight_decay}")
+    # print(f"Seed:" {nnunet_trainer.seed})
+
     for epoch in range(epochs):
         logging.info(f"Epoch {epoch+1}/{epochs}")
         model.train()
@@ -356,8 +367,11 @@ def main(args):
     if args.save_torchscript:
         ts_model_path = os.path.join(run_dir, "model_traced.pt")
         model = model.to("cpu")
+
         example_input = torch.rand(1, config["in_channels"], config["image_size"], config["image_size"])
-        traced_script_module = torch.jit.trace(model, example_input)
+        #TODO: figure out why this is triggering dynamo error
+        traced_script_module = torch.jit.trace(model, example_input) # changed from trace to script
+
         d = {"shape": example_input.shape}
         extra_files = {"config.json": json.dumps(d)}
         traced_script_module.save(ts_model_path, _extra_files=extra_files)
